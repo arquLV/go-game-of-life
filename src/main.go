@@ -1,70 +1,25 @@
 package main
 
 import (
-	"errors"
 	"fmt"
+	"image/color"
 	"math/rand"
 	"time"
+
+	"github.com/faiface/pixel"
+	"github.com/faiface/pixel/imdraw"
+	"github.com/faiface/pixel/pixelgl"
 )
 
-type Board struct {
-	width, height int
-	state         []bool
-}
-
-func (b *Board) CreateEmpty() *Board {
-	newState := make([]bool, b.width*b.height)
-	newBoard := Board{
-		b.width, b.height,
-		newState,
-	}
-
-	return &newBoard
-}
-
-func (b *Board) Get(x, y int) (bool, error) {
-	if x < 0 || x >= b.width || y < 0 || y >= b.height {
-		return false, errors.New("Out of bounds")
-	}
-
-	idx := (y * b.width) + x
-	return b.state[idx], nil
-}
-
-func (b *Board) Set(x, y int, val bool) error {
-	if x < 0 || x >= b.width || y < 0 || y >= b.height {
-		return errors.New("Out of bounds")
-	}
-
-	idx := (y * b.width) + x
-	b.state[idx] = val
-	return nil
-}
-
-func (b *Board) CountLiveNeighbors(x, y int) int {
-	numLive := 0
-	for dy := -1; dy <= 1; dy++ {
-		for dx := -1; dx <= 1; dx++ {
-			if dx == 0 && dy == 0 {
-				continue
-			}
-
-			neighbor, _ := b.Get(x+dx, y+dy)
-			if neighbor == true {
-				numLive++
-			}
-		}
-	}
-
-	return numLive
-}
-
+// Game structure holds the current board and the current step of the game
 type Game struct {
 	board *Board
 	step  int
 }
 
-func (g *Game) RandomInit(width, height int, fill float32) {
+// Initializes a board of size `width x height` and sets
+// a fraction `fill` (0.0 to 1.0) of its cells to alive
+func (g *Game) randomInit(width, height int, fill float32) {
 	startingBoard := Board{
 		width, height,
 		make([]bool, width*height),
@@ -73,7 +28,7 @@ func (g *Game) RandomInit(width, height int, fill float32) {
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
 			if rand.Float32() < fill {
-				startingBoard.Set(x, y, true)
+				startingBoard.set(x, y, true)
 			}
 		}
 	}
@@ -82,22 +37,23 @@ func (g *Game) RandomInit(width, height int, fill float32) {
 	g.step = 0
 }
 
-func (g *Game) NextStep() bool {
+// Advances the current gameboard to the next step
+func (g *Game) nextStep() bool {
 	curBoard := g.board
-	nextBoard := curBoard.CreateEmpty()
+	nextBoard := curBoard.createEmpty()
 
 	gameAlive := false
 
 	for y := 0; y < curBoard.height; y++ {
 		for x := 0; x < curBoard.width; x++ {
-			curCell, _ := curBoard.Get(x, y)
-			numLiveNeighbors := curBoard.CountLiveNeighbors(x, y)
+			curCell, _ := curBoard.get(x, y)
+			numLiveNeighbors := curBoard.countLiveNeighbors(x, y)
 
 			if curCell == true && (numLiveNeighbors == 2 || numLiveNeighbors == 3) {
-				nextBoard.Set(x, y, true)
+				nextBoard.set(x, y, true)
 				gameAlive = true
 			} else if curCell == false && numLiveNeighbors == 3 {
-				nextBoard.Set(x, y, true)
+				nextBoard.set(x, y, true)
 				gameAlive = true
 			}
 		}
@@ -109,11 +65,11 @@ func (g *Game) NextStep() bool {
 	return gameAlive
 }
 
-func (g *Game) PrintState() {
+func (g *Game) printState() {
 	curBoard := g.board
 	for y := 0; y < curBoard.height; y++ {
 		for x := 0; x < curBoard.width; x++ {
-			curCell, _ := curBoard.Get(x, y)
+			curCell, _ := curBoard.get(x, y)
 			if curCell == true {
 				fmt.Print("o")
 			} else {
@@ -124,21 +80,76 @@ func (g *Game) PrintState() {
 	}
 }
 
-func main() {
-	width := 60
-	height := 60
+// Executes given function **op** for each live cell on the board, providing its x and y coords
+func (g *Game) forEachLiveCell(op func(int, int)) {
+	curBoard := g.board
+	for y := 0; y < curBoard.height; y++ {
+		for x := 0; x < curBoard.width; x++ {
+			curCell, _ := curBoard.get(x, y)
+			if curCell == true {
+				op(x, y)
+			}
+		}
+	}
+}
 
-	game := Game{}
-	game.RandomInit(width, height, 0.1)
+func startGameloop() {
+	const FrameTime = 250 // ms
 
-	gameAlive := true
+	winWidth := 800
+	winHeight := 800
 
-	for gameAlive == true {
-		game.PrintState()
-		gameAlive = game.NextStep()
-
-		time.Sleep(250 * time.Millisecond)
+	// Creates the Pixel window for rendering with the given width/height.
+	windowConfig := pixelgl.WindowConfig{
+		Title:  "Game of Life",
+		Bounds: pixel.R(0, 0, float64(winWidth), float64(winHeight)),
+		VSync:  true,
 	}
 
-	fmt.Println("yo")
+	win, err := pixelgl.NewWindow(windowConfig)
+	if err != nil {
+		panic(err)
+	}
+
+	// Actual size of the gameboard (number of cells in each dimension)
+	width := 400
+	height := 400
+
+	game := Game{}
+	game.randomInit(width, height, 0.3)
+
+	imd := imdraw.New(nil)
+	imd.Color = color.RGBA{0xff, 0x00, 0x00, 0xff}
+
+	scaleX := winWidth / width
+	scaleY := winHeight / height
+
+	time.Sleep(1 * time.Second)
+
+	prevUpdate := time.Unix(0, 0)
+
+	for !win.Closed() {
+
+		dt := time.Now().Sub(prevUpdate)
+		if dt.Milliseconds() >= FrameTime {
+			imd.Clear()
+
+			game.forEachLiveCell(func(x, y int) {
+				imd.Push(pixel.V(float64(x*scaleX), float64(y*scaleY)), pixel.V(float64((x+1)*scaleX), float64((y+1)*scaleY)))
+				imd.Rectangle(0)
+			})
+
+			game.nextStep()
+
+			win.Clear(color.RGBA{0xff, 0xff, 0xff, 0xff})
+			imd.Draw(win)
+
+			win.Update()
+			prevUpdate = time.Now()
+		}
+	}
+}
+
+func main() {
+	pixelgl.Run(startGameloop)
 }
