@@ -11,8 +11,17 @@ import (
 	"github.com/faiface/pixel/pixelgl"
 )
 
-// Game structure holds the current board and the current step of the game
+type gameState int
+
+const (
+	startup gameState = iota
+	gameplay
+)
+
+// Game structure holds the general state, current board and the current step of the game
 type Game struct {
+	state gameState
+
 	board *Board
 	step  int
 }
@@ -115,8 +124,8 @@ func startGameloop() {
 	width := 400
 	height := 400
 
-	game := Game{}
-	game.randomInit(width, height, 0.3)
+	game := Game{state: startup}
+	go game.randomInit(width, height, 0.3)
 
 	imd := imdraw.New(nil)
 	imd.Color = color.RGBA{0xff, 0x00, 0x00, 0xff}
@@ -124,29 +133,48 @@ func startGameloop() {
 	scaleX := winWidth / width
 	scaleY := winHeight / height
 
-	time.Sleep(1 * time.Second)
+	// time.Sleep(1 * time.Second)
 
-	prevUpdate := time.Unix(0, 0)
+	prevUpdate := time.Now()
+
+	evHandler := NewEventHandler(win)
+	evHandler.OnClick(pixel.R(0, 0, 300, 300), func() {
+		fmt.Println("yolooo")
+	})
 
 	for !win.Closed() {
 
 		dt := time.Now().Sub(prevUpdate)
-		if dt.Milliseconds() >= FrameTime {
-			imd.Clear()
 
-			game.forEachLiveCell(func(x, y int) {
-				imd.Push(pixel.V(float64(x*scaleX), float64(y*scaleY)), pixel.V(float64((x+1)*scaleX), float64((y+1)*scaleY)))
-				imd.Rectangle(0)
-			})
+		switch game.state {
+		case startup:
+			elapsed := dt.Milliseconds()
+			if elapsed >= 2000 {
+				game.state = gameplay
+			} else {
+				smoothColor := uint8(255 * float64(elapsed) / 2000)
+				win.Clear(color.RGBA{smoothColor, smoothColor, smoothColor, 0xff})
+			}
 
-			game.nextStep()
+		case gameplay:
+			if dt.Milliseconds() >= FrameTime {
+				imd.Clear()
 
-			win.Clear(color.RGBA{0xff, 0xff, 0xff, 0xff})
-			imd.Draw(win)
+				game.forEachLiveCell(func(x, y int) {
+					imd.Push(pixel.V(float64(x*scaleX), float64(y*scaleY)), pixel.V(float64((x+1)*scaleX), float64((y+1)*scaleY)))
+					imd.Rectangle(0)
+				})
 
-			win.Update()
-			prevUpdate = time.Now()
+				game.nextStep()
+
+				win.Clear(color.RGBA{0xff, 0xff, 0xff, 0xff})
+				imd.Draw(win)
+
+				prevUpdate = time.Now()
+			}
 		}
+
+		win.Update()
 	}
 }
 
