@@ -57,24 +57,24 @@ func (handler *eventHandler) OnHover(target pixel.Rect, callback func()) int {
 func (handler *eventHandler) OnClick(target pixel.Rect, callback func()) int {
 	handler.registeredAreas = append(handler.registeredAreas, target)
 	areaIndex := len(handler.registeredAreas) - 1
-	fmt.Println("Adding click handler to area ", areaIndex)
 
 	handler.clickHandlers[areaIndex] = callback
 	return areaIndex
 }
 
 // NewEventHandler creates and starts new event handler if not done already
-func NewEventHandler(window *pixelgl.Window) eventHandler {
+func NewEventHandler(window *pixelgl.Window) *eventHandler {
 	handlerInstantiator.Do(func() {
 		fmt.Println("Instantiating")
-		handlerInstance := eventHandler{win: window}
-
-		handlerInstance.registeredAreas = make([]pixel.Rect, 0, 10)
-		handlerInstance.hoverHandlers = make(map[int]func())
-		handlerInstance.clickHandlers = make(map[int]func())
+		handlerInstance = eventHandler{
+			win:             window,
+			registeredAreas: make([]pixel.Rect, 0, 10),
+			hoverHandlers:   make(map[int]func()),
+			clickHandlers:   make(map[int]func()),
+		}
 
 		go handlerInstance.start()
 	})
 
-	return handlerInstance
+	return &handlerInstance
 }
