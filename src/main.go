@@ -142,19 +142,22 @@ func startGameloop() {
 		fmt.Println("yolooo")
 	})
 
+	startupView := NewUIView()
+
 	for !win.Closed() {
 
 		dt := time.Now().Sub(prevUpdate)
 
 		switch game.state {
 		case startup:
-			elapsed := dt.Milliseconds()
-			if elapsed >= 2000 {
-				game.state = gameplay
-			} else {
-				smoothColor := uint8(255 * float64(elapsed) / 2000)
-				win.Clear(color.RGBA{smoothColor, smoothColor, smoothColor, 0xff})
-			}
+			startupView.Show()
+			// elapsed := dt.Milliseconds()
+			// if elapsed >= 2000 {
+			// 	game.state = gameplay
+			// } else {
+			// 	smoothColor := uint8(255 * float64(elapsed) / 2000)
+			// 	win.Clear(color.RGBA{smoothColor, smoothColor, smoothColor, 0xff})
+			// }
 
 		case gameplay:
 			if dt.Milliseconds() >= FrameTime {
