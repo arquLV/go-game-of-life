@@ -8,20 +8,24 @@ import (
 	"github.com/faiface/pixel/pixelgl"
 )
 
-type eventHandler struct {
+type EventHandler struct {
 	win *pixelgl.Window
 
 	registeredAreas []pixel.Rect
-	hoverHandlers   map[int]func()
-	clickHandlers   map[int]func()
+	hoveredAreas    map[int]bool
+
+	hoverHandlers      map[int]func()
+	mouseEnterHandlers map[int]func()
+	mouseLeaveHandlers map[int]func()
+	clickHandlers      map[int]func()
 }
 
 var (
 	handlerInstantiator sync.Once
-	handlerInstance     eventHandler
+	handlerInstance     EventHandler
 )
 
-func (handler *eventHandler) start() {
+func (handler *EventHandler) start() {
 	for !handler.win.Closed() {
 		mousePos := handler.win.MousePosition()
 
@@ -32,6 +36,13 @@ func (handler *eventHandler) start() {
 				(mousePos.Y <= area.Max.Y)
 
 			if inArea {
+				onMouseEnter, hasMouseEnterHandler := handler.mouseEnterHandlers[areaIndex]
+				if hasMouseEnterHandler && handler.hoveredAreas[areaIndex] == false {
+					onMouseEnter()
+				}
+
+				handler.hoveredAreas[areaIndex] = true
+
 				onHover, hasHoverHandler := handler.hoverHandlers[areaIndex]
 				if hasHoverHandler {
 					onHover()
@@ -41,36 +52,82 @@ func (handler *eventHandler) start() {
 				if hasClickHandler && handler.win.JustPressed(pixelgl.MouseButtonLeft) {
 					onClick()
 				}
+			} else if !inArea && handler.hoveredAreas[areaIndex] == true {
+				handler.hoveredAreas[areaIndex] = false
+				onMouseLeave, hasMouseLeaveHandler := handler.mouseLeaveHandlers[areaIndex]
+				if hasMouseLeaveHandler {
+					onMouseLeave()
+				}
 			}
 		}
 	}
 }
 
-func (handler *eventHandler) OnHover(target pixel.Rect, callback func()) int {
-	handler.registeredAreas = append(handler.registeredAreas, target)
+func (handler *EventHandler) AddEventArea(area pixel.Rect) int {
+	handler.registeredAreas = append(handler.registeredAreas, area)
 	areaIndex := len(handler.registeredAreas) - 1
 
-	handler.hoverHandlers[areaIndex] = callback
 	return areaIndex
 }
 
-func (handler *eventHandler) OnClick(target pixel.Rect, callback func()) int {
-	handler.registeredAreas = append(handler.registeredAreas, target)
-	areaIndex := len(handler.registeredAreas) - 1
+func (handler *EventHandler) OnMouseEnter(target int, callback func()) bool {
+	if len(handler.registeredAreas)-1 > target {
+		return false
+	}
+	handler.mouseEnterHandlers[target] = callback
+	return true
+}
 
-	handler.clickHandlers[areaIndex] = callback
-	return areaIndex
+func (handler *EventHandler) OnMouseLeave(target int, callback func()) bool {
+	if len(handler.registeredAreas)-1 > target {
+		return false
+	}
+	handler.mouseLeaveHandlers[target] = callback
+	return true
+}
+
+func (handler *EventHandler) OnHover(target int, callback func()) bool {
+	if len(handler.registeredAreas)-1 > target {
+		return false
+	}
+	handler.hoverHandlers[target] = callback
+	return true
+}
+
+func (handler *EventHandler) OnClick(target int, callback func()) bool {
+	if len(handler.registeredAreas)-1 > target {
+		return false
+	}
+	handler.clickHandlers[target] = callback
+	return true
+}
+
+func (handler *EventHandler) RemoveAllHandlers(target int) bool {
+	if len(handler.registeredAreas)-1 > target {
+		return false
+	}
+
+	delete(handler.mouseEnterHandlers, target)
+	delete(handler.mouseLeaveHandlers, target)
+	delete(handler.hoverHandlers, target)
+	delete(handler.clickHandlers, target)
+
+	return true
 }
 
 // NewEventHandler creates and starts new event handler if not done already
-func NewEventHandler(window *pixelgl.Window) *eventHandler {
+func NewEventHandler(window *pixelgl.Window) *EventHandler {
 	handlerInstantiator.Do(func() {
 		fmt.Println("Instantiating")
-		handlerInstance = eventHandler{
+		handlerInstance = EventHandler{
 			win:             window,
 			registeredAreas: make([]pixel.Rect, 0, 10),
-			hoverHandlers:   make(map[int]func()),
-			clickHandlers:   make(map[int]func()),
+			hoveredAreas:    make(map[int]bool),
+
+			mouseEnterHandlers: make(map[int]func()),
+			mouseLeaveHandlers: make(map[int]func()),
+			hoverHandlers:      make(map[int]func()),
+			clickHandlers:      make(map[int]func()),
 		}
 
 		go handlerInstance.start()

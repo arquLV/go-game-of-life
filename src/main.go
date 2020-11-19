@@ -20,10 +20,20 @@ const (
 
 // Game structure holds the general state, current board and the current step of the game
 type Game struct {
-	state gameState
+	state        gameState
+	activeUIView *UIView
 
 	board *Board
 	step  int
+}
+
+func (g *Game) setUIView(uiView *UIView) {
+	if g.activeUIView != nil {
+		g.activeUIView.deactivate()
+	}
+
+	g.activeUIView = uiView
+	g.activeUIView.activate()
 }
 
 // Initializes a board of size `width x height` and sets
@@ -138,11 +148,18 @@ func startGameloop() {
 	prevUpdate := time.Now()
 
 	evHandler := NewEventHandler(win)
-	evHandler.OnClick(pixel.R(0, 0, 300, 300), func() {
-		fmt.Println("yolooo")
-	})
 
-	startupView := NewUIView()
+	startupView := NewUIView(imd, evHandler)
+	startupView.AddElement(
+		NewButton("Random",
+			pixel.V(200, 200),
+			pixel.V(100, 40),
+			func() {
+				fmt.Println("BUTTON CLICK!")
+			},
+		))
+
+	game.setUIView(startupView)
 
 	for !win.Closed() {
 
@@ -150,7 +167,10 @@ func startGameloop() {
 
 		switch game.state {
 		case startup:
-			startupView.Show()
+			win.Clear(color.RGBA{0xff, 0xff, 0xff, 0xff})
+
+			game.activeUIView.render()
+
 			// elapsed := dt.Milliseconds()
 			// if elapsed >= 2000 {
 			// 	game.state = gameplay
