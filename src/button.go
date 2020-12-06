@@ -37,7 +37,7 @@ func (b *button) Render(view *UIView) {
 	} else {
 		imd.Color = color.RGBA{0x00, 0xff, 0x00, 0xff}
 	}
-	imd.Push(pixel.V(200, 200), pixel.V(300, 240))
+	imd.Push(b.position, b.position.Add(b.dimensions))
 	imd.Rectangle(0)
 }
 
@@ -78,6 +78,11 @@ func NewButton(label string, position pixel.Vec, dimensions pixel.Vec, onClick f
 	// labelPosition := position.Add(pixel.V(dimensions.X ))
 	fontAtlas := text.NewAtlas(basicfont.Face7x13, text.ASCII)
 	btn.textRenderer = text.New(position, fontAtlas)
+
+	labelBounds := btn.textRenderer.BoundsOf(label)
+
+	btn.textRenderer.Dot.X += (dimensions.X - labelBounds.W()) / 4
+	btn.textRenderer.Dot.Y += (dimensions.Y - labelBounds.H()) / 4
 
 	btn.textRenderer.Color = color.RGBA{0x00, 0x00, 0x00, 0xff}
 	fmt.Fprintln(btn.textRenderer, label)

@@ -153,9 +153,9 @@ func startGameloop() {
 	startupView.AddElement(
 		NewButton("Random",
 			pixel.V(200, 200),
-			pixel.V(100, 40),
+			pixel.V(150, 50),
 			func() {
-				fmt.Println("BUTTON CLICK!")
+				game.state = gameplay
 			},
 		))
 
@@ -183,6 +183,7 @@ func startGameloop() {
 			if dt.Milliseconds() >= FrameTime {
 				imd.Clear()
 
+				imd.Color = color.RGBA{0xff, 0x00, 0x00, 0xff}
 				game.forEachLiveCell(func(x, y int) {
 					imd.Push(pixel.V(float64(x*scaleX), float64(y*scaleY)), pixel.V(float64((x+1)*scaleX), float64((y+1)*scaleY)))
 					imd.Rectangle(0)
